@@ -6,7 +6,7 @@ const fs = require('fs');
 let router = express.Router()
 const pino = require("pino");
 const {
-    default: Maher_Zubair,
+    default: CYBER-ALI,
     useMultiFileAuthState,
     delay,
     makeCacheableSignalKeyStore,
