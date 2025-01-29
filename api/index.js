@@ -7,6 +7,7 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Define routes
 app.use('/qr', server);
 app.use('/code', code);
 
@@ -18,4 +19,7 @@ app.get('/', (req, res) => {
     res.sendFile(join(__dirname, '../public/index.html'));
 });
 
-module.exports = app;
+// Export as serverless function
+module.exports = (req, res) => {
+  app(req, res);
+};
