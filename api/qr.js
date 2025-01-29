@@ -1,12 +1,12 @@
-const express = require('express');
+const { makeid } = require('./id'); // Sesuaikan impor dari api/id.js
 const QRCode = require('qrcode');
+const express = require('express');
 const pino = require("pino");
-const fs = require('fs');
-const firebase = require('firebase'); // SDK untuk web
+const { default: makeWASocket, useMultiFileAuthState, Browsers, delay } = require("@whiskeysockets/baileys");
+const firebase = require('firebase/app');
+require('firebase/firestore'); // pastikan firestore sudah terimport
 
-const router = express.Router();
-
-// Konfigurasi Firebase menggunakan kredensial langsung
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAig6-4KZYIqb5iU4S54qSY0uNVVxcfF5c",
   authDomain: "geehstore-311ff.firebaseapp.com",
@@ -16,38 +16,67 @@ const firebaseConfig = {
   appId: "1:130977049398:web:833580f6c1b66ed66d2197"
 };
 
-// Inisialisasi Firebase
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 } else {
-  firebase.app(); // jika sudah ada instance, pakai yang sudah ada
+  firebase.app();
 }
 
-const database = firebase.database();
+const firestore = firebase.firestore();
+const router = express.Router();
 
+// Endpoint untuk menghasilkan QR
 router.get('/', async (req, res) => {
-  const id = makeid();
-  const sessionRef = database.ref('sessions').child(id); // Menyimpan session di Firebase
-
+  const id = makeid();  // Membuat ID sesi unik
+  
   async function startSession() {
+    const { state, saveCreds } = await useMultiFileAuthState();  // Tidak menggunakan folder lokal
+    
     try {
-      // Simulasi proses pembuatan QR code
-      let qrCode = await QRCode.toDataURL('sample-qr-code-data');
-
-      // Simpan session dan QR ke Firebase
-      await sessionRef.set({
-        qr: qrCode,
-        status: 'pending', // Status untuk session ini
-        timestamp: Date.now(),
+      let sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: false,
+        logger: pino({ level: "silent" }),
+        browser: Browsers.macOS("Desktop"),
       });
 
-      res.json({ qr: qrCode });
+      sock.ev.on('creds.update', saveCreds);
+      sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
+        if (qr) {
+          // Menghasilkan QR
+          let qrImage = await QRCode.toDataURL(qr);
+          
+          // Simpan QR dan status ke Firebase
+          await firestore.collection('sessions').doc(id).set({
+            qr: qrImage,
+            status: 'waiting'
+          });
+          
+          // Kembalikan QR ke client
+          return res.json({ qr: qrImage });
+        }
+
+        if (connection === "open") {
+          await delay(5000);
+          await sock.ws.close();
+
+          // Update status sesi ke 'connected' di Firebase
+          await firestore.collection('sessions').doc(id).update({
+            status: 'connected'
+          });
+        } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
+          // Jika sesi terputus, coba lagi
+          await delay(10000);
+          startSession();
+        }
+      });
     } catch (err) {
       console.error("Error:", err);
       res.status(503).json({ error: "Service Unavailable" });
     }
   }
 
+  // Mulai sesi baru
   await startSession();
 });
 
