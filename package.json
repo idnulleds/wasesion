@@ -1,17 +1,18 @@
 {
   "description": "qr",
   "main": "api/index.js",
-  "engines": { 
+  "engines": {
     "npm": ">=9.7.2",
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "vercel dev"  // Menjalankan secara lokal
+    "start": "node api/index.js"
   },
   "author": "Maher-Zubair",
   "license": "GPL-3.0 license",
   "dependencies": {
     "@whiskeysockets/baileys": "^6.5.0",
+    "maher-zubair-baileys": "^6.6.5",
     "qrcode": "^1.5.3",
     "awesome-phonenumber": "^2.64.0",
     "pino": "^8.1.0",
