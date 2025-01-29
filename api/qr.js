@@ -1,56 +1,54 @@
-const { makeid } = require('../id');
-const QRCode = require('qrcode');
 const express = require('express');
+const QRCode = require('qrcode');
 const pino = require("pino");
 const fs = require('fs');
-const { default: makeWASocket, useMultiFileAuthState, Browsers, delay } = require("@whiskeysockets/baileys");
+const firebase = require('firebase'); // SDK untuk web
 
-let router = express.Router();
+const router = express.Router();
+
+// Konfigurasi Firebase menggunakan kredensial langsung
+const firebaseConfig = {
+  apiKey: "AIzaSyAig6-4KZYIqb5iU4S54qSY0uNVVxcfF5c",
+  authDomain: "geehstore-311ff.firebaseapp.com",
+  projectId: "geehstore-311ff",
+  storageBucket: "geehstore-311ff.firebasestorage.app",
+  messagingSenderId: "130977049398",
+  appId: "1:130977049398:web:833580f6c1b66ed66d2197"
+};
+
+// Inisialisasi Firebase
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+} else {
+  firebase.app(); // jika sudah ada instance, pakai yang sudah ada
+}
+
+const database = firebase.database();
 
 router.get('/', async (req, res) => {
-    const id = makeid();
-    const sessionPath = `/tmp/${id}`; // Gunakan folder sementara di Vercel
+  const id = makeid();
+  const sessionRef = database.ref('sessions').child(id); // Menyimpan session di Firebase
 
-    async function startSession() {
-        const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
+  async function startSession() {
+    try {
+      // Simulasi proses pembuatan QR code
+      let qrCode = await QRCode.toDataURL('sample-qr-code-data');
 
-        try {
-            let sock = makeWASocket({
-                auth: state,
-                printQRInTerminal: false,
-                logger: pino({ level: "silent" }),
-                browser: Browsers.macOS("Desktop"),
-            });
+      // Simpan session dan QR ke Firebase
+      await sessionRef.set({
+        qr: qrCode,
+        status: 'pending', // Status untuk session ini
+        timestamp: Date.now(),
+      });
 
-            sock.ev.on('creds.update', saveCreds);
-
-            sock.ev.on("connection.update", async ({ connection, lastDisconnect, qr }) => {
-                if (qr) {
-                    try {
-                        let qrImage = await QRCode.toDataURL(qr);
-                        return res.json({ qr: qrImage });
-                    } catch (qrError) {
-                        console.error("QR Error:", qrError);
-                        res.status(500).json({ error: "QR Code generation failed" });
-                    }
-                }
-
-                if (connection === "open") {
-                    await delay(5000);
-                    await sock.ws.close();
-                    fs.rmSync(sessionPath, { recursive: true, force: true });
-                } else if (connection === "close" && lastDisconnect?.error?.output?.statusCode !== 401) {
-                    await delay(10000);
-                    startSession(); // Restart session on connection close
-                }
-            });
-        } catch (err) {
-            console.error("Error in session:", err);
-            res.status(503).json({ error: "Service Unavailable" });
-        }
+      res.json({ qr: qrCode });
+    } catch (err) {
+      console.error("Error:", err);
+      res.status(503).json({ error: "Service Unavailable" });
     }
+  }
 
-    await startSession();
+  await startSession();
 });
 
 module.exports = router;
