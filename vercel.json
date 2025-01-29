@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/index.js", "use": "@vercel/node" },
+    { "src": "api/qr.js", "use": "@vercel/node" },
+    { "src": "api/pair.js", "use": "@vercel/node" },
+    { "src": "public/**/*", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/qr", "dest": "api/qr.js" },
+    { "src": "/code", "dest": "api/pair.js" },
+    { "src": "/pair", "dest": "public/pair.html" },
+    { "src": "/", "dest": "public/index.html" }
+  ]
+}
